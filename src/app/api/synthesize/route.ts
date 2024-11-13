@@ -12,11 +12,11 @@ import {
 import { Readable } from 'stream';
 
 const pollyClient = new PollyClient({
-  region: process.env.AWS_REGION || 'us-east-1',
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
-  },
+  region: process.env.NET_AWS_REGION || 'us-west-2',
+        credentials: {
+            accessKeyId: process.env.AWS_KEY || '',
+            secretAccessKey: process.env.AWS_SECRET || '',
+        },
 });
 
 export async function POST(request: NextRequest): Promise<Response> {
