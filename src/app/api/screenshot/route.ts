@@ -1,21 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
-import puppeteer, { Browser } from 'puppeteer';
-
-let browserInstance: Browser | null = null;
-
-async function getBrowser() {
-  if (!browserInstance) {
-    browserInstance = await puppeteer.launch({
-      headless: true
-    });
-  }
-  return browserInstance;
-}
+import puppeteer from 'puppeteer-core';
+import chromium from '@sparticuz/chromium';
 
 export async function POST(request: NextRequest) {
+  let browser = null;
   try {
     const { url } = await request.json();
-    const browser = await getBrowser();
+
+    // Configure browser based on environment
+    const isDev = process.env.NODE_ENV === 'development';
+    
+    browser = await puppeteer.launch(isDev ? {
+      // In development, use the local Chrome installation
+      executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+      headless: true
+    } : {
+      // In production (Vercel), use @sparticuz/chromium
+      args: chromium.args,
+      defaultViewport: chromium.defaultViewport,
+      executablePath: await chromium.executablePath(),
+      headless: chromium.headless,
+    });
+
     const page = await browser.newPage();
     
     // Set initial viewport
@@ -104,13 +110,9 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error taking screenshot:', error);
     return NextResponse.json({ error: 'Failed to take screenshot' }, { status: 500 });
+  } finally {
+    if (browser) {
+      await browser.close();
+    }
   }
 }
-
-// Cleanup browser instance when the API is shutting down
-process.on('SIGTERM', async () => {
-  if (browserInstance) {
-    await browserInstance.close();
-    browserInstance = null;
-  }
-});

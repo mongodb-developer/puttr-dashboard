@@ -17,6 +17,18 @@ const nextConfig = {
       },
     ]
   },
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '10mb',
+    },
+  },
+  // Configure function settings for Vercel
+  functions: {
+    'api/screenshot': {
+      memory: 1024, // Increase memory to 1GB
+      maxDuration: 60, // Set timeout to 60 seconds
+    },
+  },
 }
 
 module.exports = nextConfig
