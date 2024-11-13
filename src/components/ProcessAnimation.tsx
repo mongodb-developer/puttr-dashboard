@@ -1,30 +1,23 @@
+// src/components/ProcessAnimation.tsx
 import React from 'react';
 
 interface ProcessAnimationProps {
-  isCapturing: boolean;
   isAnalyzing: boolean;
   isSynthesizing: boolean;
 }
 
-const ProcessAnimation: React.FC<ProcessAnimationProps> = ({ isCapturing, isAnalyzing, isSynthesizing }) => {
+const ProcessAnimation: React.FC<ProcessAnimationProps> = ({ isAnalyzing, isSynthesizing }) => {
   const steps = [
     {
-      title: 'Screenshot',
-      description: 'Taking a screenshot of the MongoDB Charts dashboard using Puppeteer',
-      isActive: isCapturing,
-      isDone: !isCapturing && (isAnalyzing || isSynthesizing),
-      icon: '📸'
-    },
-    {
       title: 'Bedrock Analysis',
-      description: 'Using Claude 3.5 Computer Use to analyze the chart data and generate insights',
+      description: 'Using Claude 3.5 Computer Use to analyze the chart data',
       isActive: isAnalyzing,
       isDone: !isAnalyzing && isSynthesizing,
       icon: '🧠'
     },
     {
       title: 'Polly Synthesis',
-      description: 'Converting the analysis into natural speech using Amazon Polly 🦜',
+      description: 'Converting analysis to speech',
       isActive: isSynthesizing,
       isDone: false,
       icon: '🔊'
@@ -32,8 +25,8 @@ const ProcessAnimation: React.FC<ProcessAnimationProps> = ({ isCapturing, isAnal
   ];
 
   return (
-    <div className="w-full max-w-2xl mx-auto p-6 bg-white rounded-lg">
-      <h3 className="text-xl font-semibold mb-6 text-center">AI Processing Pipeline</h3>
+    <div className="w-full max-w-md mx-auto p-6 bg-white rounded-lg">
+      <h3 className="text-xl font-semibold mb-6 text-center">Processing</h3>
       <div className="space-y-4">
         {steps.map((step, index) => (
           <div 
@@ -67,14 +60,12 @@ const ProcessAnimation: React.FC<ProcessAnimationProps> = ({ isCapturing, isAnal
               <p className="text-sm text-gray-500 mt-1">{step.description}</p>
               
               {/* Status */}
-              <div className="mt-2 text-sm">
-                {step.isActive && (
-                  <span className="text-blue-600">Processing...</span>
-                )}
-                {step.isDone && (
-                  <span className="text-green-600">✓ Complete</span>
-                )}
-              </div>
+              {step.isActive && (
+                <span className="text-sm text-blue-600 mt-2 block">Processing...</span>
+              )}
+              {step.isDone && (
+                <span className="text-sm text-green-600 mt-2 block">✓ Complete</span>
+              )}
             </div>
           </div>
         ))}

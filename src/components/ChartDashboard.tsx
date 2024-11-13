@@ -1,13 +1,18 @@
+// src/components/ChartDashboard.tsx
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import ChartsEmbedSDK from "@mongodb-js/charts-embed-dom";
 import ProcessAnimation from './ProcessAnimation';
 import AITextDisplay from './AITextDisplay';
+import { captureElement, isScreenCaptureSupported } from '../utils/screenshotUtil';
 
 const ChartDashboard = () => {
+  // Refs
   const chartDiv = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
+
+  // State management
   const [error, setError] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
@@ -18,7 +23,9 @@ const ChartDashboard = () => {
   const [showAnimation, setShowAnimation] = useState(false);
   const [aiText, setAiText] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isSupported, setIsSupported] = useState(true);
 
+  // Initialize chart
   useEffect(() => {
     if (chartDiv.current) {
       const sdk = new ChartsEmbedSDK({
@@ -40,7 +47,6 @@ const ChartDashboard = () => {
       const renderChart = async () => {
         try {
           await chart.render(chartDiv.current!);
-          console.log("Chart rendered successfully");
           setIsChartReady(true);
         } catch (err: any) {
           console.error("Error rendering chart:", err);
@@ -59,20 +65,12 @@ const ChartDashboard = () => {
     }
   }, []);
 
+  // Check browser support on mount
   useEffect(() => {
-    // Cleanup previous audio URL when component unmounts or when new audio is generated
-    return () => {
-      if (audioUrl) {
-        URL.revokeObjectURL(audioUrl);
-      }
-    };
-  }, [audioUrl]);
+    setIsSupported(isScreenCaptureSupported());
+  }, []);
 
-  useEffect(() => {
-    // Show animation when any process is running
-    setShowAnimation(isCapturing || isAnalyzing || isSynthesizing);
-  }, [isCapturing, isAnalyzing, isSynthesizing]);
-
+  // Audio state management
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -92,40 +90,41 @@ const ChartDashboard = () => {
     };
   }, []);
 
-  const captureScreenshot = async () => {
+  // Cleanup audio URL
+  useEffect(() => {
+    return () => {
+      if (audioUrl) {
+        URL.revokeObjectURL(audioUrl);
+      }
+    };
+  }, [audioUrl]);
+
+  // Show animation when processing
+  useEffect(() => {
+    setShowAnimation(isAnalyzing || isSynthesizing); // Remove isCapturing
+  }, [isAnalyzing, isSynthesizing]);
+
+  const captureScreenshot = useCallback(async () => {
+    if (!isSupported) {
+      setError('Screen capture is not supported in your browser');
+      return;
+    }
+
     try {
       setIsCapturing(true);
       setError(null);
-
-      const response = await fetch('/api/screenshot', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          url: window.location.href
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to capture screenshot');
-      }
-
-      const imageBlob = await response.blob();
-      const imageData = await new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.readAsDataURL(imageBlob);
-      });
-
+      
+      const imageData = await captureElement();
       setCapturedImage(imageData);
+      
     } catch (err) {
       console.error('Error capturing screenshot:', err);
-      setError('Failed to capture screenshot');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to capture screenshot';
+      setError(errorMessage);
     } finally {
       setIsCapturing(false);
     }
-  };
+  }, [isSupported]);
 
   const analyzeChart = async () => {
     if (!capturedImage) return;
@@ -182,16 +181,14 @@ const ChartDashboard = () => {
       }
 
       const audioBlob = await response.blob();
-      const url = URL.createObjectURL(audioBlob);
       
-      // Clean up old audio URL if it exists
       if (audioUrl) {
         URL.revokeObjectURL(audioUrl);
       }
       
+      const url = URL.createObjectURL(audioBlob);
       setAudioUrl(url);
       
-      // Play the audio automatically
       if (audioRef.current) {
         audioRef.current.play();
       }
@@ -223,35 +220,40 @@ const ChartDashboard = () => {
     <div className="w-full h-screen relative">
       <div ref={chartDiv} className="w-full h-full bg-white rounded-lg shadow-lg" />
       
-      {/* Take Screenshot Button */}
+      {/* Single Action Button */}
       {isChartReady && !capturedImage && !showAnimation && (
         <button
           onClick={captureScreenshot}
-          disabled={isCapturing}
-          className="absolute top-4 right-4 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg shadow disabled:opacity-50 disabled:cursor-not-allowed"
+          disabled={isCapturing || !isSupported}
+          className="absolute top-4 right-4 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg shadow disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
         >
-          {isCapturing ? 'Capturing...' : 'Analyse with Bedrock'}
+          <span>{isCapturing ? 'Capturing...' : 'Analyse with Bedrock'}</span>
+          {isCapturing && (
+            <svg className="animate-spin h-4 w-4 ml-2" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+            </svg>
+          )}
         </button>
       )}
 
-      {/* Process Animation Modal */}
+      {/* Processing Animation */}
       {showAnimation && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
-          <ProcessAnimation
-            isCapturing={isCapturing}
-            isAnalyzing={isAnalyzing}
-            isSynthesizing={isSynthesizing}
-          />
-        </div>
-      )}
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+      <ProcessAnimation
+        isAnalyzing={isAnalyzing}
+        isSynthesizing={isSynthesizing}
+      />
+    </div>
+  )}
 
-      {/* Screenshot Preview and Analysis Modal */}
+      {/* Results Modal */}
       {capturedImage && !showAnimation && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-lg p-4 max-w-4xl w-full max-h-[90vh] flex flex-col">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold">
-                {audioUrl ? 'Audio Analysis' : 'Screenshot Preview'}
+                {audioUrl ? 'Analysis Results' : 'Captured Chart'}
               </h3>
               <button
                 onClick={resetAll}
@@ -261,12 +263,10 @@ const ChartDashboard = () => {
               </button>
             </div>
             
-            {/* Content Area */}
             <div className="flex-1 overflow-auto mb-4">
               <img src={capturedImage} alt="Chart Screenshot" className="w-full h-auto" />
             </div>
             
-            {/* AI Text and Audio Player */}
             {audioUrl && (
               <div className="border-t pt-4">
                 {aiText && (
@@ -287,7 +287,6 @@ const ChartDashboard = () => {
               </div>
             )}
             
-            {/* Action Button */}
             {!audioUrl && (
               <div className="flex justify-center border-t pt-4">
                 <button
@@ -303,7 +302,7 @@ const ChartDashboard = () => {
         </div>
       )}
 
-      {/* Status Messages */}
+      {/* Error Messages */}
       {error && (
         <div className="absolute top-0 left-0 right-0 bg-red-100 text-red-700 p-4 rounded-t-lg">
           {error}

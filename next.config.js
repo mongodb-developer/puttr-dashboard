@@ -22,12 +22,31 @@ const nextConfig = {
       bodySizeLimit: '10mb',
     },
   },
-  // Configure function settings for Vercel
-  functions: {
-    'api/screenshot': {
-      memory: 1024, // Increase memory to 1GB
-      maxDuration: 60, // Set timeout to 60 seconds
-    },
+  webpack: (config, { isServer, dev }) => {
+    // Fixes npm packages that depend on `fs` module
+    if (!isServer && !dev) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        child_process: false,
+        net: false,
+        tls: false,
+      };
+    }
+
+    // Exclude chrome-aws-lambda from being processed by webpack
+    config.externals.push({
+      'chrome-aws-lambda': 'commonjs chrome-aws-lambda',
+    });
+
+    // Ignore .map files for chrome-aws-lambda
+    config.module.rules.push({
+      test: /\.map$/,
+      use: 'ignore-loader',
+      include: /node_modules\/chrome-aws-lambda/,
+    });
+
+    return config;
   },
 }
 
