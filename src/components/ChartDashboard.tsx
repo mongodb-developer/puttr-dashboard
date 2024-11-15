@@ -1,4 +1,3 @@
-// src/components/ChartDashboard.tsx
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
@@ -8,11 +7,11 @@ import AITextDisplay from './AITextDisplay';
 import { captureElement, isScreenCaptureSupported } from '../utils/screenshotUtil';
 
 const ChartDashboard = () => {
-  // Refs
+  // Existing refs
   const chartDiv = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
 
-  // State management
+  // Existing state management
   const [error, setError] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
@@ -24,6 +23,12 @@ const ChartDashboard = () => {
   const [aiText, setAiText] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isSupported, setIsSupported] = useState(true);
+  
+  // New state for filters
+  const [dashboardInstance, setDashboardInstance] = useState<any>(null);
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
+  const [selectedTee, setSelectedTee] = useState<string>('');
 
   // Initialize chart
   useEffect(() => {
@@ -47,6 +52,7 @@ const ChartDashboard = () => {
       const renderChart = async () => {
         try {
           await chart.render(chartDiv.current!);
+          setDashboardInstance(chart);
           setIsChartReady(true);
         } catch (err: any) {
           console.error("Error rendering chart:", err);
@@ -65,12 +71,58 @@ const ChartDashboard = () => {
     }
   }, []);
 
-  // Check browser support on mount
+  // Filter functions
+  const applyFilters = async () => {
+    if (!dashboardInstance) return;
+
+    try {
+      let filters: any[] = [];
+
+      // Add date filter if dates are selected
+      if (startDate && endDate) {
+        filters.push({
+          created_at: {
+            $gte: { $date: new Date(startDate).toISOString() },
+            $lte: { $date: new Date(endDate).toISOString() }
+          }
+        });
+      }
+
+      // Add tee filter if selected
+      if (selectedTee) {
+        filters.push({
+          tee: { $eq: parseInt(selectedTee) }
+        });
+      }
+
+      // Combine filters with $and if there are multiple
+      const finalFilter = filters.length > 1 ? { $and: filters } : filters[0] || {};
+      
+      await dashboardInstance.setFilter(finalFilter);
+    } catch (err) {
+      console.error('Error applying filters:', err);
+      setError('Failed to apply filters');
+    }
+  };
+
+  const resetFilters = async () => {
+    if (!dashboardInstance) return;
+    try {
+      await dashboardInstance.setFilter({});
+      setStartDate('');
+      setEndDate('');
+      setSelectedTee('');
+    } catch (err) {
+      console.error('Error resetting filters:', err);
+      setError('Failed to reset filters');
+    }
+  };
+
+  // Existing useEffects and functions remain unchanged
   useEffect(() => {
     setIsSupported(isScreenCaptureSupported());
   }, []);
 
-  // Audio state management
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -90,7 +142,6 @@ const ChartDashboard = () => {
     };
   }, []);
 
-  // Cleanup audio URL
   useEffect(() => {
     return () => {
       if (audioUrl) {
@@ -99,11 +150,11 @@ const ChartDashboard = () => {
     };
   }, [audioUrl]);
 
-  // Show animation when processing
   useEffect(() => {
-    setShowAnimation(isAnalyzing || isSynthesizing); // Remove isCapturing
+    setShowAnimation(isAnalyzing || isSynthesizing);
   }, [isAnalyzing, isSynthesizing]);
 
+  // Rest of the existing functions remain unchanged
   const captureScreenshot = useCallback(async () => {
     if (!isSupported) {
       setError('Screen capture is not supported in your browser');
@@ -126,6 +177,7 @@ const ChartDashboard = () => {
     }
   }, [isSupported]);
 
+  // Rest of the existing functions remain unchanged...
   const analyzeChart = async () => {
     if (!capturedImage) return;
     
@@ -218,14 +270,66 @@ const ChartDashboard = () => {
 
   return (
     <div className="w-full h-screen relative">
-      <div ref={chartDiv} className="w-full h-full bg-white rounded-lg shadow-lg" />
+      {/* Filter Controls */}
+      <div className="absolute top-0 left-0 right-0 bg-white p-4 shadow-md z-10 flex flex-wrap gap-4 items-center">
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium">Start Date:</label>
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            className="border rounded px-2 py-1"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium">End Date:</label>
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            className="border rounded px-2 py-1"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium">Tee Distance:</label>
+          <select
+            value={selectedTee}
+            onChange={(e) => setSelectedTee(e.target.value)}
+            className="border rounded px-2 py-1"
+          >
+            <option value="">All</option>
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+          </select>
+        </div>
+        <button
+          onClick={applyFilters}
+          className="bg-blue-500 text-white px-4 py-1 rounded hover:bg-blue-600"
+        >
+          Apply Filters
+        </button>
+        <button
+          onClick={resetFilters}
+          className="bg-gray-500 text-white px-4 py-1 rounded hover:bg-gray-600"
+        >
+          Reset Filters
+        </button>
+      </div>
+
+      {/* Chart Container with padding for filters */}
+      <div className="pt-16">
+        <div ref={chartDiv} className="w-full h-full bg-white rounded-lg shadow-lg" />
+      </div>
       
-      {/* Single Action Button */}
+      {/* Rest of the existing JSX remains unchanged */}
       {isChartReady && !capturedImage && !showAnimation && (
         <button
           onClick={captureScreenshot}
           disabled={isCapturing || !isSupported}
-          className="absolute top-4 right-4 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg shadow disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+          className="absolute top-20 right-4 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg shadow disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
         >
           <span>{isCapturing ? 'Capturing...' : 'Analyse with Bedrock'}</span>
           {isCapturing && (
@@ -237,17 +341,15 @@ const ChartDashboard = () => {
         </button>
       )}
 
-      {/* Processing Animation */}
       {showAnimation && (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
-      <ProcessAnimation
-        isAnalyzing={isAnalyzing}
-        isSynthesizing={isSynthesizing}
-      />
-    </div>
-  )}
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+          <ProcessAnimation
+            isAnalyzing={isAnalyzing}
+            isSynthesizing={isSynthesizing}
+          />
+        </div>
+      )}
 
-      {/* Results Modal */}
       {capturedImage && !showAnimation && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-lg p-4 max-w-4xl w-full max-h-[90vh] flex flex-col">
@@ -302,7 +404,6 @@ const ChartDashboard = () => {
         </div>
       )}
 
-      {/* Error Messages */}
       {error && (
         <div className="absolute top-0 left-0 right-0 bg-red-100 text-red-700 p-4 rounded-t-lg">
           {error}
